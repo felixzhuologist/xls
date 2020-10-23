@@ -25,8 +25,36 @@ namespace xls {
 
 absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBase(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  // Replace TupleIndex(Tuple(i{0}, i{1}, ..., i{N}), index=k) with i{k}
   bool changed = false;
+  // Replace Tuple(TupleIndex(t, 0), TupleIndex(t, 1), ... TupleIndex(t, N))
+  // with t if t has N elements.
+  for (Node* node : f->nodes()) {
+    if (!node->Is<Tuple>()) {
+      continue;
+    }
+    bool can_simplify = true;
+    Node* deconstructed_tuple = nullptr;
+    for (int64 i = 0; i < node->operand_count(); ++i) {
+      Node* op = node->operand(i);
+      if (!op->Is<TupleIndex>() || op->As<TupleIndex>()->index() != i) {
+        can_simplify = false;
+        break;
+      }
+      if (!deconstructed_tuple) {
+        deconstructed_tuple = op->operand(0);
+      } else if (deconstructed_tuple != op->operand(0)) {
+        can_simplify = false;
+        break;
+      }
+    }
+    if (can_simplify && deconstructed_tuple->GetType() == node->GetType()) {
+      XLS_ASSIGN_OR_RETURN(bool node_changed,
+                           node->ReplaceUsesWith(deconstructed_tuple));
+      changed |= node_changed;
+    }
+  }
+
+  // Replace TupleIndex(Tuple(i{0}, i{1}, ..., i{N}), index=k) with i{k}
   std::deque<absl::variant<TupleIndex*, ArrayIndex*>> worklist;
   for (Node* node : f->nodes()) {
     if (node->Is<TupleIndex>()) {

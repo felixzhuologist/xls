@@ -21,8 +21,11 @@
 
 namespace xls {
 
-// Pass which simplifies and eliminates tuples. Replaces a tuple instruction
-// followed by a tuple index instruction with the tuple element itself.
+// Pass which simplifies and eliminates tuples.
+// - Replaces a tuple instruction followed by a tuple index instruction with
+//   the tuple element itself.
+// - Replaces a tuple constructed from a deconstructed tuple with the original
+//   tuple.
 class TupleSimplificationPass : public FunctionBasePass {
  public:
   TupleSimplificationPass()

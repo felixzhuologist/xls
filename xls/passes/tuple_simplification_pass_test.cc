@@ -14,9 +14,9 @@
 
 #include "xls/passes/tuple_simplification_pass.h"
 
+#include "absl/status/statusor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
@@ -145,6 +145,53 @@ TEST_F(TupleSimplificationPassTest, UnboxingLiteralArray) {
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Add(m::Literal(0), m::Literal(1)));
+}
+
+TEST_F(TupleSimplificationPassTest, Reconstruct) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(x: bits[1], y: bits[2], z: bits[3]) -> (bits[1], bits[2], bits[3]) {
+  tuple.1: (bits[1], bits[2], bits[3]) = tuple(x, y, z)
+  tuple_index.2: bits[1] = tuple_index(tuple.1, index=0)
+  tuple_index.3: bits[2] = tuple_index(tuple.1, index=1)
+  tuple_index.4: bits[3] = tuple_index(tuple.1, index=2)
+  ret tuple.5: (bits[1], bits[2], bits[3]) = tuple(tuple_index.2, tuple_index.3, tuple_index.4)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_EQ(f->node_count(), 8);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(f->node_count(), 4);
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Param("x"), m::Param("y"), m::Param("z")));
+}
+
+TEST_F(TupleSimplificationPassTest, ReconstructParamTuple) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(data: (bits[1], bits[2], bits[3])) -> (bits[1], bits[2], bits[3]) {
+  tuple_index.1: bits[1] = tuple_index(data, index=0)
+  tuple_index.2: bits[2] = tuple_index(data, index=1)
+  tuple_index.3: bits[3] = tuple_index(data, index=2)
+  ret tuple.4: (bits[1], bits[2], bits[3]) = tuple(tuple_index.1, tuple_index.2, tuple_index.3)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("data"));
+}
+
+TEST_F(TupleSimplificationPassTest, ReconstructDifferentSize) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(data: (bits[1], bits[2], bits[3])) -> (bits[1], bits[2]) {
+  tuple_index.1: bits[1] = tuple_index(data, index=0)
+  tuple_index.2: bits[2] = tuple_index(data, index=1)
+  ret tuple.3: (bits[1], bits[2]) = tuple(tuple_index.1, tuple_index.2)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 }  // namespace
