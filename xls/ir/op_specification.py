@@ -481,7 +481,7 @@ OpClass.kinds['ARITH_OP'] = OpClass(
 OpClass.kinds['ASSERT'] = OpClass(
     name='Assert',
     op='Op::kAssert',
-    operands=[Operand('token'), Operand('condition')],
+    operands=[Operand('token'), Operand('condition'), OperandSpan('data_operands')],
     xls_type_expression='function->package()->GetTokenType()',
     extra_methods=[Method(name='token',
                           return_cpp_type='Node*',
@@ -489,8 +489,11 @@ OpClass.kinds['ASSERT'] = OpClass(
                    Method(name='condition',
                           return_cpp_type='Node*',
                           expression='operand(1)'),
-                   ],
-    attributes=[StringAttribute('message'), OptionalStringAttribute('label')]
+                   Method(name='data_operands',
+                          return_cpp_type='absl::Span<Node* const>',
+                          expression='operands().subspan(2)')],
+    attributes=[StringAttribute('message'), OptionalStringAttribute('label')],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['COVER'] = OpClass(
